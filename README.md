@@ -12,7 +12,7 @@
 ## 安装
 
 ```bash
-npx skills add <your-username>/github-knowledge
+npx skills add hanniballei/github-knowledge
 ```
 
 ## 配置

@@ -24,17 +24,24 @@ description: |
 At the start of every operation, read the configured path:
 
 ```bash
-GITHUB_KNOWLEDGE_PATH=$(bash -c 'source ~/.bashrc 2>/dev/null; source ~/.zshrc 2>/dev/null; echo $GITHUB_KNOWLEDGE_PATH')
+GITHUB_KNOWLEDGE_PATH=$(printenv GITHUB_KNOWLEDGE_PATH 2>/dev/null \
+  || bash -c 'source ~/.bashrc 2>/dev/null; source ~/.zshrc 2>/dev/null; echo $GITHUB_KNOWLEDGE_PATH')
 echo "$GITHUB_KNOWLEDGE_PATH"
 ```
 
-If empty, ask the user for their desired storage path, then guide them to add to `~/.bashrc` (or `~/.zshrc`):
+If empty, ask the user for their desired storage path, then guide them to configure it:
 
-```bash
-export GITHUB_KNOWLEDGE_PATH=/path/chosen/by/user
-```
+- **bash / zsh**: add to `~/.bashrc` or `~/.zshrc`:
+  ```bash
+  export GITHUB_KNOWLEDGE_PATH=/path/chosen/by/user
+  ```
+  Then reload: `source ~/.bashrc`
 
-Then reload: `source ~/.bashrc`
+- **fish**: add to `~/.config/fish/config.fish`:
+  ```fish
+  set -x GITHUB_KNOWLEDGE_PATH /path/chosen/by/user
+  ```
+  Then reload: `source ~/.config/fish/config.fish`
 
 ---
 
@@ -87,17 +94,21 @@ mkdir -p "$GITHUB_KNOWLEDGE_PATH/$OWNER"
 git clone --depth 1 "$REPO_URL" "$LOCAL_PATH"
 ```
 
+**If clone fails:**
+- Print the error message to the user
+- If the directory was partially created, clean it up: `rm -rf "$LOCAL_PATH"`
+- Common causes to mention: network issues, private repo (requires authentication), wrong URL format
+- Do not proceed with summarization; ask the user to verify the URL and try again
+
 Read the repo contents and generate a summary (see [Summarization](#summarization)).
 Write a new entry to BASE.md (see [BASE.md format](references/base-md-format.md)).
 
 ### 4b. Existing repo → Pull and assess
 
-```bash
-cd "$LOCAL_PATH" && git pull
-git log --oneline -20
-```
+Use the [Pull Helper](#pull-helper) with `OWNER` and `REPO` set. Then:
 
-If meaningful changes (new features, major fixes, architecture changes): update the summary in BASE.md.
+If skipping pull: use local files as-is.
+If pull ran and there were meaningful changes (new features, major fixes, architecture changes): update the summary in BASE.md.
 If only minor changes (docs, typos, deps): keep existing summary.
 
 ---
@@ -108,15 +119,34 @@ If only minor changes (docs, typos, deps): keep existing summary.
 
 Extract `owner/repo` from the user's message if provided.
 
-If only a repo name is given (no owner):
-- Run `gh search repos <name> --sort stars --limit 1` to find the most popular match
-- Use that repo and inform the user: "已使用 `owner/repo`，如需其他版本请提供完整链接"
+If only a repo name is given (no owner), **first search BASE.md locally** before hitting GitHub API:
 
-If `gh` is unavailable:
 ```bash
-curl -s "https://api.github.com/search/repositories?q=<name>&sort=stars&per_page=1" \
-  | python3 -c "import sys,json; r=json.load(sys.stdin)['items'][0]; print(r['full_name'])"
+BASE_MD="$GITHUB_KNOWLEDGE_PATH/BASE.md"
+# REPO is the name extracted from the user's message (e.g. "react" → REPO=react)
+# Match all entries whose repo name (after the /) equals the given name (case-insensitive)
+MATCHES=$(grep -i "## \[.*/$REPO\]" "$BASE_MD" 2>/dev/null | grep -oE '\[[^]]+\]' | tr -d '[]')
+COUNT=$(echo "$MATCHES" | grep -c '[^[:space:]]' 2>/dev/null || echo 0)
 ```
+
+- **0 matches** → fall back to GitHub search:
+  - Run `gh search repos <name> --sort stars --limit 1` to find the most popular match
+  - Use that repo and inform the user: "已使用 `owner/repo`，如需其他版本请提供完整链接"
+  - If `gh` is unavailable:
+    ```bash
+    curl -s "https://api.github.com/search/repositories?q=<name>&sort=stars&per_page=1" \
+      | python3 -c "import sys,json; r=json.load(sys.stdin)['items'][0]; print(r['full_name'])"
+    ```
+
+- **1 match** → extract `OWNER` and `REPO` from it, proceed
+
+- **2+ matches** → ambiguous; list all matches and ask the user to clarify:
+
+  > "本地知识库中有多个同名仓库，请指定：
+  > 1. facebook/react
+  > 2. some-fork/react"
+
+  Wait for user selection before proceeding.
 
 ### 2. Check if exists locally
 
@@ -126,10 +156,7 @@ curl -s "https://api.github.com/search/repositories?q=<name>&sort=stars&per_page
 
 ### 3a. Found locally → Pull and answer
 
-```bash
-cd "$GITHUB_KNOWLEDGE_PATH/$OWNER/$REPO" && git pull
-git log --oneline -20
-```
+Use the [Pull Helper](#pull-helper) with `OWNER` and `REPO` set.
 
 Read local files to answer the user's question.
 
@@ -157,6 +184,10 @@ curl -s "https://api.github.com/repos/owner/repo/pulls?state=open&per_page=10"
 
 Answer the user's question from the fetched data.
 
+> **Rate limit note**: unauthenticated curl requests are limited to 60/hr. If you receive a `403` response, inform the user:
+> "GitHub API 访问频率超限（匿名 60次/小时）。建议在 `~/.bashrc` 中配置：`export GITHUB_TOKEN=your_token`，然后在 curl 请求中加上 `-H "Authorization: Bearer $GITHUB_TOKEN"`"。
+> If `GITHUB_TOKEN` is already set in the environment, always include the Authorization header in curl calls.
+
 ---
 
 ## Summarization
@@ -178,3 +209,32 @@ Then update BASE.md. See [BASE.md format](references/base-md-format.md).
 See [BASE.md format](references/base-md-format.md) for the full format specification.
 
 Quick rule: one entry per repo, most recently updated at the top. Update in-place when refreshing; never duplicate entries.
+
+---
+
+## Pull Helper
+
+Used by both Download Flow (step 5b) and Query Flow (step 3a). Requires `OWNER` and `REPO` to be set.
+
+```bash
+BASE_MD="$GITHUB_KNOWLEDGE_PATH/BASE.md"
+LOCAL_PATH="$GITHUB_KNOWLEDGE_PATH/$OWNER/$REPO"
+TODAY=$(date +%Y-%m-%d)
+UPDATED=$(grep -A3 "## \[$OWNER/$REPO\]" "$BASE_MD" 2>/dev/null | grep "^\*\*Updated\*\*" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}')
+
+if [ "$UPDATED" = "$TODAY" ]; then
+  echo "SKIP_PULL: already up-to-date today"
+else
+  cd "$LOCAL_PATH"
+  IS_SHALLOW=$(git rev-parse --is-shallow-repository 2>/dev/null)
+  if [ "$IS_SHALLOW" = "true" ]; then
+    git pull --depth 1
+  else
+    git pull
+  fi
+  git log --oneline -20
+fi
+```
+
+- If `SKIP_PULL`: use local files as-is
+- If pull ran: inspect `git log` output to decide if the summary needs updating

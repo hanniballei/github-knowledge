@@ -6,7 +6,7 @@ It lists all locally saved GitHub repos with their summaries.
 ## File Location
 
 ```
-$KNOWLEDGE_BASE_PATH/BASE.md
+$GITHUB_KNOWLEDGE_PATH/BASE.md
 ```
 
 Create it if it doesn't exist when adding the first repo entry.
@@ -16,14 +16,14 @@ Create it if it doesn't exist when adding the first repo entry.
 ```markdown
 # GitHub Knowledge Base
 
-> Local path: /absolute/path/to/KNOWLEDGE_BASE_PATH
+> Local path: /absolute/path/to/GITHUB_KNOWLEDGE_PATH
 > Last updated: YYYY-MM-DD
 
 ---
 
 ## [owner/repo-name](https://github.com/owner/repo-name)
 
-**Local**: `$KNOWLEDGE_BASE_PATH/owner/repo-name`
+**Local**: `$GITHUB_KNOWLEDGE_PATH/owner/repo-name`
 **Updated**: YYYY-MM-DD
 
 owner/repo-name 是一个... [one concise paragraph summary in the user's language]
@@ -32,7 +32,7 @@ owner/repo-name 是一个... [one concise paragraph summary in the user's langua
 
 ## [owner/another-repo](https://github.com/owner/another-repo)
 
-**Local**: `$KNOWLEDGE_BASE_PATH/owner/another-repo`
+**Local**: `$GITHUB_KNOWLEDGE_PATH/owner/another-repo`
 **Updated**: YYYY-MM-DD
 
 another-repo 提供了... [summary paragraph]
@@ -45,7 +45,7 @@ another-repo 提供了... [summary paragraph]
 1. **One entry per repo** — identified by `owner/repo-name`
 2. **Most recently updated at the top** — newest additions or updates go first
 3. **Summary language** — write in the same language the user used when requesting the download
-4. **Local path must be absolute** — resolve `$KNOWLEDGE_BASE_PATH` to the actual path
+4. **Local path must be absolute** — resolve `$GITHUB_KNOWLEDGE_PATH` to the actual path
 5. **Update in-place** — when refreshing a summary, replace the existing entry, don't duplicate it
 
 ## Summary Content Guidelines
@@ -63,7 +63,7 @@ Keep it to 3–5 sentences. Aim for someone to understand the repo's value in 10
 ```markdown
 ## [langchain-ai/langchain](https://github.com/langchain-ai/langchain)
 
-**Local**: `/home/user/github-knowledge/langchain-ai/langchain`
+**Local**: `/home/user/github-knowledge/langchain-ai/langchain`  ← 替换为 $GITHUB_KNOWLEDGE_PATH 的实际路径
 **Updated**: 2026-02-18
 
 langchain 是一个用于构建大语言模型（LLM）应用的 Python/JavaScript 框架，提供链式调用、
